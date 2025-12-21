@@ -16,7 +16,7 @@
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v6.7</title>
+    <title>皮皮相機 v6.8</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -93,12 +93,7 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        // ==========================================
-        // ▼▼▼ 自動產生 PNG 圖片清單 ▼▼▼
-        // ==========================================
         const BACKGROUND_IMAGES = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`);
-
-        // 預設備用圖
         const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='16' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif'%3E請將圖片放入 images 資料夾%3C/text%3E%3C/svg%3E";
 
         // --- 煙火元件 ---
@@ -157,6 +152,29 @@
             );
         };
 
+        // 核心修正：將任意比例圖片裁切為正方形的高畫質 DataURL
+        const cropToSquare = (imageSrc) => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const size = Math.min(img.width, img.height);
+                    // 為了保證畫質，我們使用原始解析度進行裁切
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 計算置中裁切的位置
+                    const sx = (img.width - size) / 2;
+                    const sy = (img.height - size) / 2;
+                    
+                    ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+                    resolve(canvas.toDataURL('image/jpeg', 0.95)); // 輸出高品質 JPG
+                };
+                img.src = imageSrc;
+            });
+        };
+
         const App = () => {
             const [mode, setMode] = useState('camera');
             const [image, setImage] = useState(null);
@@ -166,7 +184,6 @@
             const [currentBgPath, setCurrentBgPath] = useState('');
             
             const [processingText, setProcessingText] = useState("Printing..."); 
-            
             const [locationName, setLocationName] = useState("");
             const [locationDetail, setLocationDetail] = useState("定位中...");
             const [date, setDate] = useState("");
@@ -188,7 +205,12 @@
 
             useEffect(() => {
                 if (mode === 'result' && textCanvasRef.current) {
-                    drawTextOnCanvas();
+                    // 使用 ResizeObserver 確保文字 Canvas 永遠跟隨圖片大小
+                    const resizeObserver = new ResizeObserver(() => {
+                        drawTextOnCanvas();
+                    });
+                    resizeObserver.observe(textCanvasRef.current);
+                    return () => resizeObserver.disconnect();
                 }
             }, [locationName, locationDetail, date, mode, image]);
 
@@ -217,17 +239,17 @@
                 const ctx = canvas.getContext('2d');
                 
                 const scale = 2; 
-                canvas.width = canvas.offsetWidth * scale;
-                canvas.height = canvas.offsetHeight * scale;
+                canvas.width = canvas.clientWidth * scale;
+                canvas.height = canvas.clientHeight * scale;
                 ctx.scale(scale, scale);
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight * 0.4);
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.clientHeight * 0.4);
                 gradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
                 gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
                 ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight * 0.4);
+                ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight * 0.4);
 
                 ctx.textBaseline = 'top';
                 ctx.fillStyle = '#ffffff';
@@ -240,7 +262,7 @@
                 let currentY = padding;
 
                 ctx.font = 'bold 16px "Noto Sans TC", sans-serif';
-                const maxWidth = canvas.offsetWidth - (padding * 2);
+                const maxWidth = canvas.clientWidth - (padding * 2);
                 let title = locationName || "未命名地標";
                 
                 if (ctx.measureText(title).width > maxWidth) {
@@ -307,8 +329,10 @@
                 shuffleBackground(); 
 
                 const reader = new FileReader();
-                reader.onload = (event) => {
-                    setImage(event.target.result);
+                reader.onload = async (event) => {
+                    // 修正：先進行圖片裁切，確保它是正方形
+                    const squareImage = await cropToSquare(event.target.result);
+                    setImage(squareImage);
                     
                     setTimeout(() => {
                         setProcessingText("✨ 回憶紀錄完成！ ✨"); 
@@ -419,7 +443,6 @@
 
             const isCssBg = bgImage.startsWith('data:') || bgImage === 'css-default';
 
-            // VIEW 1: 首頁 (Dark Mode)
             if (mode === 'camera') {
                 return (
                     <div className="h-[100dvh] w-full bg-gradient-to-b from-gray-900 via-gray-900 to-emerald-950 flex flex-col relative overflow-hidden text-white">
@@ -451,12 +474,11 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.7 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.8 • AUTO GPS</div>
                     </div>
                 );
             }
 
-            // VIEW 2: 印製轉場 (Dark Mode)
             if (mode === 'processing') {
                 return (
                     <div className="h-[100dvh] w-full bg-gray-950 flex flex-col items-center justify-center relative transition-all duration-500 text-white">
@@ -483,16 +505,19 @@
                 );
             }
 
-            // VIEW 3: 完成畫面 (Dark Mode + Slow Print Animation)
             return (
                 <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden relative">
                     <Toast message={toast.message} show={toast.show} />
                     <Fireworks />
                     
-                    {/* 主要內容區：明信片 + 編輯按鈕 (垂直排列) */}
+                    <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start safe-area-top pointer-events-none">
+                        <button onClick={() => { if(confirm("要放棄目前的編輯並重來嗎？")) resetApp(); }} className="pointer-events-auto w-10 h-10 bg-gray-800/90 backdrop-blur rounded-full shadow-lg flex items-center justify-center text-gray-200 active:scale-90 transition-transform border border-white/10">
+                            <i data-lucide="x" className="w-6 h-6"></i>
+                        </button>
+                    </div>
+
                     <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-md mx-auto">
                         
-                        {/* 1. 明信片本體 */}
                         <div className="w-full shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-6">
                              <div 
                                 ref={cardRef}
@@ -509,7 +534,6 @@
                                     <div className="absolute bottom-0 left-0 right-0 h-[3%] bg-gradient-to-r from-[#8ad7ff] via-[#ffe35e] to-[#ff8a8a] opacity-80 z-0"></div>
                                 )}
 
-                                {/* 郵戳 */}
                                 <div className="absolute top-[4%] right-[4%] z-20 w-[18%] aspect-square opacity-80 pointer-events-none transform rotate-12">
                                     <svg viewBox="0 0 100 100" className="w-full h-full">
                                         <circle cx="50" cy="50" r="46" fill="none" stroke="#b91c1c" strokeWidth="2" />
@@ -533,15 +557,11 @@
 
                                 <div className="absolute inset-0 flex p-[4%] items-center z-10">
                                     <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
-                                        {/* FIX: 使用 background-image 替代 img 標籤，解決 html2canvas object-fit 變形問題 */}
-                                        <div 
-                                            className="w-full h-full"
-                                            style={{
-                                                backgroundImage: `url("${image}")`,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                                backgroundRepeat: 'no-repeat'
-                                            }}
+                                        {/* 回歸使用 img 標籤，解決背景圖解析度問題 */}
+                                        <img 
+                                            src={image} 
+                                            className="w-full h-full object-contain bg-black" 
+                                            alt="User content" 
                                         />
                                         <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                     </div>
@@ -550,7 +570,6 @@
                             </div>
                         </div>
 
-                        {/* 2. 編輯按鈕 (放在明信片下方) */}
                         <div className="pointer-events-auto">
                             <button 
                                 onClick={() => setShowEdit(!showEdit)} 
@@ -561,7 +580,6 @@
                             </button>
                         </div>
 
-                        {/* 圖片除錯狀態文字 */}
                         {bgImageStatus === 'error' && (
                             <div className="mt-2 bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
