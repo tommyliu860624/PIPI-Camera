@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#022c22">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="皮皮相機">
+    <title>皮皮相機 v6.0 (Smart Loader)</title>
+    
+    <!-- React & Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+            touch-action: pan-x pan-y;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-area-top { padding-top: env(safe-area-inset-top); }
+        
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        
+        @keyframes slide-up {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
+
+        @keyframes print-reveal {
+            0% { 
+                transform: translateY(60px) scale(0.98); 
+                opacity: 0; 
+                filter: blur(4px); 
+            }
+            100% { 
+                transform: translateY(0) scale(1); 
+                opacity: 1; 
+                filter: blur(0);   
+            }
+        }
+        .animate-print { 
+            animation: print-reveal 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; 
+        }
+
+        @keyframes toast-in {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes toast-out {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-100%); opacity: 0; }
+        }
+        .toast-enter { animation: toast-in 0.3s ease-out forwards; }
+        .toast-exit { animation: toast-out 0.3s ease-in forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        // ==========================================
+        // ▼▼▼ 自動產生 PNG 圖片清單 (Smart Mode) ▼▼▼
+        // ==========================================
+        // 這裡嘗試混合兩種常見命名格式，增加讀取成功率
+        const CUSTOM_IMAGES_1 = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`); // 有空格
+        const CUSTOM_IMAGES_2 = Array.from({ length: 25 }, (_, i) => `images/pipi_bg(${i + 1}).png`);  // 沒空格
+        const ALL_POSSIBLE_IMAGES = [...CUSTOM_IMAGES_1, ...CUSTOM_IMAGES_2];
+
+        // 預設備用圖 (如果你的圖都讀不到，會顯示這個，確保不破版)
+        const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='20' text-anchor='middle' fill='%23ccc' font-family='sans-serif'%3E圖片讀取中...%3C/text%3E%3C/svg%3E";
+
+        // --- 煙火元件 ---
+        const Fireworks = () => {
+            const canvasRef = useRef(null);
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let particles = [];
+                let animationId;
+                const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+                window.addEventListener('resize', resize);
+                resize();
+                const createParticle = (x, y, color) => ({ x, y, color, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, alpha: 1, size: Math.random() * 3 + 1 });
+                const createExplosion = () => {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height * 0.6; 
+                    const color = `hsl(${Math.random() * 360}, 100%, 70%)`; 
+                    for (let i = 0; i < 30; i++) particles.push(createParticle(x, y, color));
+                };
+                const animate = () => {
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.globalCompositeOperation = 'lighter';
+                    particles.forEach((p, index) => {
+                        p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.alpha -= 0.015;
+                        ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                        if (p.alpha <= 0) particles.splice(index, 1);
+                    });
+                    if (Math.random() < 0.05) createExplosion();
+                    animationId = requestAnimationFrame(animate);
+                };
+                animate();
+                return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(animationId); };
+            }, []);
+            return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-80" />;
+        };
+
+        const convertDMSToDD = (dms, ref) => {
+            if (!dms || dms.length < 3) return null;
+            let dd = dms[0] + dms[1] / 60 + dms[2] / (60 * 60);
+            if (ref === "S" || ref === "W") dd = dd * -1;
+            return dd;
+        };
+
+        const Toast = ({ message, show }) => {
+            if (!show) return null;
+            return (
+                <div className="fixed top-0 left-0 right-0 z-50 p-4 flex justify-center pointer-events-none safe-area-top">
+                    <div className="bg-emerald-600 text-white px-6 py-3 rounded-full shadow-xl shadow-emerald-900/50 flex items-center gap-2 toast-enter border border-emerald-400/30">
+                        <i data-lucide="check-circle" className="w-5 h-5 text-white"></i>
+                        <span className="font-medium text-sm">{message}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [mode, setMode] = useState('camera');
+            const [image, setImage] = useState(null);
+            
+            // 圖片載入狀態管理
+            const [bgImage, setBgImage] = useState(FALLBACK_IMAGE);
+            const [bgImageStatus, setBgImageStatus] = useState('loading'); // 'loading', 'loaded', 'error'
+            const [currentBgPath, setCurrentBgPath] = useState('');
+            
+            const [processingText, setProcessingText] = useState("Printing..."); 
+            
+            const [locationName, setLocationName] = useState("");
+            const [locationDetail, setLocationDetail] = useState("定位中...");
+            const [date, setDate] = useState("");
+            
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+            const [showEdit, setShowEdit] = useState(false);
+            const [toast, setToast] = useState({ show: false, message: '' });
+            const [browserLocation, setBrowserLocation] = useState(null);
+            
+            const cardRef = useRef(null);
+            const textCanvasRef = useRef(null);
+            const cameraInputRef = useRef(null);
+            const galleryInputRef = useRef(null);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [mode, image, showEdit, toast.show, processingText]);
+
+            useEffect(() => {
+                if (mode === 'result' && textCanvasRef.current) {
+                    drawTextOnCanvas();
+                }
+            }, [locationName, locationDetail, date, mode, image]);
+
+            const showToastMessage = (msg) => {
+                setToast({ show: true, message: msg });
+                setTimeout(() => {
+                    setToast({ show: false, message: '' });
+                }, 3000);
+            };
+
+            const requestBrowserLocation = () => {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            setBrowserLocation(position.coords);
+                        },
+                        (err) => console.warn("Browser location failed"),
+                        { enableHighAccuracy: true, timeout: 5000 }
+                    );
+                }
+            };
+
+            const drawTextOnCanvas = () => {
+                const canvas = textCanvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                
+                const scale = 2; 
+                canvas.width = canvas.offsetWidth * scale;
+                canvas.height = canvas.offsetHeight * scale;
+                ctx.scale(scale, scale);
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight * 0.4);
+                gradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight * 0.4);
+
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 1;
+
+                const padding = 10;
+                let currentY = padding;
+
+                ctx.font = 'bold 16px "Noto Sans TC", sans-serif';
+                const maxWidth = canvas.offsetWidth - (padding * 2);
+                let title = locationName || "未命名地標";
+                
+                if (ctx.measureText(title).width > maxWidth) {
+                     ctx.font = 'bold 14px "Noto Sans TC", sans-serif'; 
+                }
+                
+                ctx.fillText(title, padding, currentY);
+                currentY += 24;
+
+                ctx.font = '500 11px "Noto Sans TC", sans-serif';
+                const detailText = isLoadingLocation ? "讀取中..." : (locationDetail || "未知位置");
+                const dateText = date;
+
+                ctx.fillText('📍 ' + detailText + '   ' + dateText, padding, currentY);
+            };
+
+            // 智慧型隨機選圖 (含錯誤處理)
+            const shuffleBackground = () => {
+                const randomIndex = Math.floor(Math.random() * ALL_POSSIBLE_IMAGES.length);
+                const selectedPath = ALL_POSSIBLE_IMAGES[randomIndex];
+                
+                setCurrentBgPath(selectedPath); // 紀錄目前想讀取的路徑
+                setBgImageStatus('loading');
+                
+                // 嘗試預載入圖片，如果失敗就切換 fallback
+                const img = new Image();
+                img.onload = () => {
+                    setBgImage(selectedPath);
+                    setBgImageStatus('loaded');
+                };
+                img.onerror = () => {
+                    console.warn(`Failed to load image: ${selectedPath}`);
+                    setBgImage(FALLBACK_IMAGE);
+                    setBgImageStatus('error');
+                };
+                img.src = selectedPath;
+            };
+
+            const performReverseGeocode = (lat, lon) => {
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=zh-TW`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.address) {
+                            const addr = data.address;
+                            const suburb = addr.suburb || addr.town || addr.village || addr.neighbourhood || "";
+                            const city = addr.city || addr.county || "";
+                            let loc = suburb && city ? `${suburb} ${city}` : (city || suburb);
+                            if(loc) setLocationDetail(loc);
+                            
+                            const landmark = addr.building || addr.amenity || addr.tourism || addr.shop;
+                            if (landmark) setLocationName(landmark);
+                        }
+                    })
+                    .catch(e => setLocationDetail("無法讀取地址"))
+                    .finally(() => setIsLoadingLocation(false));
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setMode('processing');
+                setProcessingText("正在印製明信片..."); 
+                shuffleBackground(); // 開始選背景
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    setImage(event.target.result);
+                    
+                    setTimeout(() => {
+                        setProcessingText("✨ 回憶紀錄完成！ ✨"); 
+                        setTimeout(() => {
+                            setMode('result');
+                        }, 2500); 
+                    }, 3000); 
+                };
+                reader.readAsDataURL(file);
+
+                setIsLoadingLocation(true);
+                setLocationName("未命名地標");
+                setLocationDetail("定位中...");
+                setDate(new Date().toISOString().split('T')[0].replace(/-/g, '/'));
+
+                EXIF.getData(file, function() {
+                    const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                    if (exifDate) {
+                        setDate(exifDate.substring(0, 10).replace(/:/g, '/'));
+                    }
+
+                    const latData = EXIF.getTag(this, "GPSLatitude");
+                    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                    const lonData = EXIF.getTag(this, "GPSLongitude");
+                    const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+
+                    if (latData && lonData) {
+                        const lat = convertDMSToDD(latData, latRef);
+                        const lon = convertDMSToDD(lonData, lonRef);
+                        performReverseGeocode(lat, lon);
+                    } else {
+                        if (browserLocation) {
+                            performReverseGeocode(browserLocation.latitude, browserLocation.longitude);
+                        } else if ("geolocation" in navigator) {
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => performReverseGeocode(position.coords.latitude, position.coords.longitude),
+                                (err) => {
+                                    setLocationDetail("請開啟定位權限");
+                                    setIsLoadingLocation(false);
+                                },
+                                { enableHighAccuracy: true, timeout: 10000 }
+                            );
+                        } else {
+                            setLocationDetail("無法使用定位");
+                            setIsLoadingLocation(false);
+                        }
+                    }
+                });
+            };
+
+            const handleShare = async () => {
+                if (!cardRef.current) return;
+                setIsGenerating(true);
+                await new Promise(r => setTimeout(r, 100));
+
+                try {
+                    const canvas = await html2canvas(cardRef.current, {
+                        scale: 3,
+                        useCORS: true,
+                        backgroundColor: null,
+                        logging: false
+                    });
+
+                    canvas.toBlob(async (blob) => {
+                        if (!blob) { setIsGenerating(false); return; }
+                        
+                        const filename = `pipi_postcard_${Date.now()}.png`;
+                        const file = new File([blob], filename, { type: "image/png" });
+                        
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            try {
+                                await navigator.share({
+                                    files: [file],
+                                    title: '皮皮明信片',
+                                    text: '看看我做的明信片！'
+                                });
+                            } catch (err) { console.log("User cancelled share"); }
+                        } else {
+                            const link = document.createElement('a');
+                            link.download = filename;
+                            link.href = canvas.toDataURL('image/png');
+                            link.click();
+                            showToastMessage("明信片下載完成！");
+                        }
+                        setIsGenerating(false);
+                    }, 'image/png');
+
+                } catch (err) {
+                    showToastMessage("製作失敗，請嘗試截圖");
+                    setIsGenerating(false);
+                }
+            };
+
+            const resetApp = () => {
+                setMode('camera');
+                setImage(null);
+                setShowEdit(false);
+                setBrowserLocation(null); 
+                if(cameraInputRef.current) cameraInputRef.current.value = '';
+                if(galleryInputRef.current) galleryInputRef.current.value = '';
+            };
+
+            const isCssBg = bgImage.startsWith('data:') || bgImage === 'css-default';
+
+            // VIEW 1: 首頁 (Dark Mode)
+            if (mode === 'camera') {
+                return (
+                    <div className="h-[100dvh] w-full bg-gradient-to-b from-gray-900 via-gray-900 to-emerald-950 flex flex-col relative overflow-hidden text-white">
+                        <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20 animate-blob"></div>
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20 animate-blob animation-delay-2000"></div>
+                        <div className="absolute -bottom-32 left-20 w-80 h-80 bg-green-600 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob animation-delay-4000"></div>
+
+                        <div className="flex-1 flex flex-col items-center justify-center p-8 z-10 animate-slide-up">
+                            <div className="text-center mb-12">
+                                <div className="text-6xl mb-4 animate-float inline-block drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">🌱</div>
+                                <h1 className="text-4xl font-black tracking-tight text-white mb-2 drop-shadow-md">皮皮相機</h1>
+                                <p className="text-lg text-gray-300 font-medium tracking-wide">與皮皮一起，<br/>收藏世界的每個角落</p>
+                            </div>
+
+                            <div className="w-full max-w-sm space-y-4">
+                                <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleImageUpload} />
+                                <input type="file" accept="image/*" ref={galleryInputRef} className="hidden" onChange={handleImageUpload} />
+
+                                <button onClick={() => { requestBrowserLocation(); cameraInputRef.current.click(); }} className="w-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
+                                    <div className="w-12 h-12 bg-emerald-900/50 rounded-full flex items-center justify-center text-emerald-400 border border-emerald-500/30 group-hover:scale-110 transition-transform"><i data-lucide="camera" className="w-6 h-6"></i></div>
+                                    <div className="text-left"><h3 className="font-bold text-lg">拍攝新照片</h3><p className="text-xs text-gray-400">捕捉當下的美好瞬間</p></div>
+                                    <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-500"></i>
+                                </button>
+
+                                <button onClick={() => { requestBrowserLocation(); galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
+                                    <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center text-slate-400 border border-slate-600/30 group-hover:scale-110 transition-transform"><i data-lucide="image" className="w-6 h-6"></i></div>
+                                    <div className="text-left"><h3 className="font-bold text-lg">從相簿挑選</h3><p className="text-xs text-gray-500">製作回憶明信片</p></div>
+                                    <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-600"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.0 • AUTO GPS</div>
+                    </div>
+                );
+            }
+
+            // VIEW 2: 印製轉場
+            if (mode === 'processing') {
+                return (
+                    <div className="h-[100dvh] w-full bg-gray-950 flex flex-col items-center justify-center relative transition-all duration-500 text-white">
+                        <div className="relative w-32 h-32 flex items-center justify-center mb-8">
+                            {processingText === "正在印製明信片..." ? (
+                                <>
+                                    <div className="absolute inset-0 border-4 border-gray-800 rounded-full"></div>
+                                    <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="text-4xl animate-bounce">🌱</span>
+                                </>
+                            ) : (
+                                <div className="animate-float">
+                                    <i data-lucide="check-circle" className="w-20 h-20 text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]"></i>
+                                </div>
+                            )}
+                        </div>
+                        <h2 className="text-xl font-bold text-white tracking-widest uppercase animate-slide-up" key={processingText}>{processingText}</h2>
+                        {processingText === "正在印製明信片..." && (
+                            <p className="mt-2 text-xs text-emerald-500 animate-pulse">
+                                {locationDetail === "定位中..." ? "GPS 定位中..." : `📍 ${locationDetail}`}
+                            </p>
+                        )}
+                    </div>
+                );
+            }
+
+            // VIEW 3: 完成畫面
+            return (
+                <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden relative">
+                    <Toast message={toast.message} show={toast.show} />
+                    <Fireworks />
+                    
+                    <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start safe-area-top pointer-events-none">
+                        <button onClick={() => { if(confirm("要放棄目前的編輯並重來嗎？")) resetApp(); }} className="pointer-events-auto w-10 h-10 bg-gray-800/90 backdrop-blur rounded-full shadow-lg flex items-center justify-center text-gray-200 active:scale-90 transition-transform border border-white/10">
+                            <i data-lucide="x" className="w-6 h-6"></i>
+                        </button>
+                        
+                        <div className="pointer-events-auto">
+                            <button 
+                                onClick={() => setShowEdit(!showEdit)} 
+                                className={`px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-colors border border-white/10 ${showEdit ? 'bg-emerald-600 text-white' : 'bg-gray-800/90 backdrop-blur text-gray-200'}`}
+                            >
+                                <i data-lucide="pencil" className="w-4 h-4"></i>
+                                <span className="text-sm font-bold">編輯</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+                        <div className="w-full max-w-md shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-4">
+                             <div 
+                                ref={cardRef}
+                                className="relative w-full bg-white overflow-hidden"
+                                style={{ 
+                                    aspectRatio: '3/2',
+                                    backgroundImage: isCssBg ? 'none' : `url("${bgImage}")`,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    backgroundColor: 'white'
+                                }}
+                            >
+                                {isCssBg && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-[3%] bg-gradient-to-r from-[#8ad7ff] via-[#ffe35e] to-[#ff8a8a] opacity-80 z-0"></div>
+                                )}
+
+                                {/* 郵戳 */}
+                                <div className="absolute top-[4%] right-[4%] z-20 w-[18%] aspect-square opacity-80 pointer-events-none transform rotate-12">
+                                    <svg viewBox="0 0 100 100" className="w-full h-full">
+                                        <circle cx="50" cy="50" r="46" fill="none" stroke="#b91c1c" strokeWidth="2" />
+                                        <circle cx="50" cy="50" r="34" fill="none" stroke="#b91c1c" strokeWidth="1" />
+                                        <path id="textPathTop" d="M 14,50 A 36,36 0 0,1 86,50" fill="none" />
+                                        <text fill="#b91c1c" fontSize="9" fontWeight="900" letterSpacing="1" fontFamily="Arial Black, sans-serif">
+                                            <textPath href="#textPathTop" startOffset="50%" textAnchor="middle">PIPI CAMERA</textPath>
+                                        </text>
+                                        <path id="textPathBottom" d="M 14,50 A 36,36 0 0,0 86,50" fill="none" />
+                                        <text fill="#b91c1c" fontSize="10" fontWeight="bold">
+                                             <textPath href="#textPathBottom" startOffset="50%" textAnchor="middle">★ ★ ★</textPath>
+                                        </text>
+                                        <text x="50" y="58" textAnchor="middle" fill="#b91c1c" fontSize="30" fontFamily="Times New Roman, serif" fontWeight="bold">
+                                            11<tspan fontSize="12" dy="-10">th</tspan>
+                                        </text>
+                                        <text x="50" y="74" textAnchor="middle" fill="#b91c1c" fontSize="6" fontFamily="Arial, sans-serif" fontWeight="bold" letterSpacing="0.5">
+                                            ANNIVERSARY
+                                        </text>
+                                    </svg>
+                                </div>
+
+                                <div className="absolute inset-0 flex p-[4%] items-center z-10">
+                                    <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
+                                        <img src={image} className="w-full h-full object-cover" alt="Captured" />
+                                        <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+                                    </div>
+                                    <div className="flex-1 h-full"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 圖片除錯狀態文字 */}
+                        {bgImageStatus === 'error' && (
+                            <div className="bg-red-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-red-500/50">
+                                ⚠️ 找不到背景圖: {currentBgPath}
+                            </div>
+                        )}
+                        {bgImageStatus === 'loading' && (
+                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
+                                🔄 讀取背景圖中: {currentBgPath}
+                            </div>
+                        )}
+                    </div>
+
+                    {showEdit && (
+                        <div className="absolute bottom-24 left-4 right-4 bg-gray-800/90 backdrop-blur rounded-xl p-4 shadow-xl z-20 animate-slide-up border border-white/10">
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="text-xs font-bold text-gray-400">編輯資訊</h3>
+                                <button 
+                                    onClick={() => setShowEdit(false)}
+                                    className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-full font-bold hover:bg-emerald-500 transition-colors shadow-sm"
+                                >
+                                    完成
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <input type="text" value={locationName} onChange={(e)=>setLocationName(e.target.value)} placeholder="地標名稱" className="w-full p-2 bg-gray-900 text-white rounded border border-gray-600 text-sm focus:border-emerald-500 focus:outline-none" />
+                                <div className="flex gap-2">
+                                    <input type="text" value={locationDetail} onChange={(e)=>setLocationDetail(e.target.value)} placeholder="區域" className="w-full p-2 bg-gray-900 text-white rounded border border-gray-600 text-sm focus:border-emerald-500 focus:outline-none" />
+                                    <input type="text" value={date} onChange={(e)=>setDate(e.target.value)} className="w-1/3 p-2 bg-gray-900 text-white rounded border border-gray-600 text-sm text-center focus:border-emerald-500 focus:outline-none" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="p-6 pb-8 bg-gray-900 safe-area-bottom shadow-[0_-4px_20px_rgba(0,0,0,0.3)] rounded-t-3xl z-30 flex gap-3 relative border-t border-white/5">
+                        <button onClick={resetApp} className="flex-1 py-4 bg-gray-800 text-gray-200 rounded-2xl font-bold flex items-center justify-center gap-2 text-lg active:scale-95 transition-transform hover:bg-gray-700">
+                            <i data-lucide="rotate-ccw" className="w-5 h-5"></i>
+                            重新拍攝
+                        </button>
+                        
+                        <button onClick={handleShare} disabled={isGenerating} className={`flex-[2] py-4 rounded-2xl font-bold text-white shadow-lg shadow-emerald-900/50 flex items-center justify-center gap-2 text-lg active:scale-95 transition-transform ${isGenerating ? 'bg-gray-700' : 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600'}`}>
+                            {isGenerating ? (<><i data-lucide="loader-2" className="w-6 h-6 animate-spin"></i>處理中...</>) : (<><i data-lucide="download" className="w-6 h-6"></i>下載明信片</>)}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
