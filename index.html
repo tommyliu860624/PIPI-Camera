@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="皮皮相機">
-    <title>皮皮相機 v6.1</title>
+    <title>皮皮相機 v6.2</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -85,12 +85,11 @@
         const { useState, useRef, useEffect } = React;
 
         // ==========================================
-        // ▼▼▼ 自動產生 PNG 圖片清單 (Fixed) ▼▼▼
+        // ▼▼▼ 自動產生 PNG 圖片清單 ▼▼▼
         // ==========================================
-        // 修正：只產生 "pipi_bg (1).png" 這種帶有空格的格式，不亂猜了
         const BACKGROUND_IMAGES = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`);
 
-        // 預設備用圖 (如果還沒上傳圖片，或是路徑錯誤時顯示)
+        // 預設備用圖
         const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='16' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif'%3E請將圖片放入 images 資料夾%3C/text%3E%3C/svg%3E";
 
         // --- 煙火元件 ---
@@ -153,7 +152,6 @@
             const [mode, setMode] = useState('camera');
             const [image, setImage] = useState(null);
             
-            // 圖片載入狀態管理
             const [bgImage, setBgImage] = useState(FALLBACK_IMAGE);
             const [bgImageStatus, setBgImageStatus] = useState('loading');
             
@@ -161,6 +159,7 @@
             const [locationName, setLocationName] = useState("");
             const [locationDetail, setLocationDetail] = useState("定位中...");
             const [date, setDate] = useState("");
+            
             const [isGenerating, setIsGenerating] = useState(false);
             const [isLoadingLocation, setIsLoadingLocation] = useState(false);
             const [showEdit, setShowEdit] = useState(false);
@@ -259,7 +258,6 @@
                     setBgImageStatus('loaded');
                 };
                 img.onerror = () => {
-                    // 安靜地切換，不報錯
                     console.warn(`Local image missing: ${selectedPath}`);
                     setBgImage(FALLBACK_IMAGE);
                     setBgImageStatus('error');
@@ -290,6 +288,9 @@
                 const file = e.target.files[0];
                 if (!file) return;
 
+                // 判斷來源是否為相機
+                const isCamera = e.target === cameraInputRef.current;
+
                 setMode('processing');
                 setProcessingText("正在印製明信片..."); 
                 shuffleBackground(); 
@@ -310,41 +311,50 @@
                 setIsLoadingLocation(true);
                 setLocationName("未命名地標");
                 setLocationDetail("定位中...");
-                setDate(new Date().toISOString().split('T')[0].replace(/-/g, '/'));
+                const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+                setDate(today); // 預設為今天
 
-                EXIF.getData(file, function() {
-                    const exifDate = EXIF.getTag(this, "DateTimeOriginal");
-                    if (exifDate) {
-                        setDate(exifDate.substring(0, 10).replace(/:/g, '/'));
-                    }
-
-                    const latData = EXIF.getTag(this, "GPSLatitude");
-                    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
-                    const lonData = EXIF.getTag(this, "GPSLongitude");
-                    const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
-
-                    if (latData && lonData) {
-                        const lat = convertDMSToDD(latData, latRef);
-                        const lon = convertDMSToDD(lonData, lonRef);
-                        performReverseGeocode(lat, lon);
+                if (isCamera) {
+                    // --- 相機模式：使用當下定位 & 時間 ---
+                    if (browserLocation) {
+                        performReverseGeocode(browserLocation.latitude, browserLocation.longitude);
+                    } else if ("geolocation" in navigator) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => performReverseGeocode(position.coords.latitude, position.coords.longitude),
+                            (err) => {
+                                setLocationDetail("請開啟定位權限");
+                                setIsLoadingLocation(false);
+                            },
+                            { enableHighAccuracy: true, timeout: 10000 }
+                        );
                     } else {
-                        if (browserLocation) {
-                            performReverseGeocode(browserLocation.latitude, browserLocation.longitude);
-                        } else if ("geolocation" in navigator) {
-                            navigator.geolocation.getCurrentPosition(
-                                (position) => performReverseGeocode(position.coords.latitude, position.coords.longitude),
-                                (err) => {
-                                    setLocationDetail("請開啟定位權限");
-                                    setIsLoadingLocation(false);
-                                },
-                                { enableHighAccuracy: true, timeout: 10000 }
-                            );
+                        setLocationDetail("無法使用定位");
+                        setIsLoadingLocation(false);
+                    }
+                } else {
+                    // --- 相簿模式：優先讀取 EXIF ---
+                    EXIF.getData(file, function() {
+                        const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                        if (exifDate) {
+                            setDate(exifDate.substring(0, 10).replace(/:/g, '/'));
+                        }
+
+                        const latData = EXIF.getTag(this, "GPSLatitude");
+                        const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                        const lonData = EXIF.getTag(this, "GPSLongitude");
+                        const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+
+                        if (latData && lonData) {
+                            const lat = convertDMSToDD(latData, latRef);
+                            const lon = convertDMSToDD(lonData, lonRef);
+                            performReverseGeocode(lat, lon);
                         } else {
-                            setLocationDetail("無法使用定位");
+                            // 相簿無 GPS 資訊時，顯示無位置，不要偷抓當下位置
+                            setLocationDetail("無位置資訊");
                             setIsLoadingLocation(false);
                         }
-                    }
-                });
+                    });
+                }
             };
 
             const handleShare = async () => {
@@ -426,14 +436,14 @@
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-500"></i>
                                 </button>
 
-                                <button onClick={() => { requestBrowserLocation(); galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
+                                <button onClick={() => { galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
                                     <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center text-slate-400 border border-slate-600/30 group-hover:scale-110 transition-transform"><i data-lucide="image" className="w-6 h-6"></i></div>
                                     <div className="text-left"><h3 className="font-bold text-lg">從相簿挑選</h3><p className="text-xs text-gray-500">製作回憶明信片</p></div>
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-600"></i>
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.1 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.2 • AUTO GPS</div>
                     </div>
                 );
             }
@@ -487,7 +497,7 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+                    <div className="flex-1 flex items-center justify-center p-6 z-10">
                         <div className="w-full max-w-md shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-4">
                              <div 
                                 ref={cardRef}
@@ -536,7 +546,7 @@
                             </div>
                         </div>
 
-                        {/* 圖片除錯狀態文字 - 改為預覽模式提示 (無本地圖片時顯示) */}
+                        {/* 圖片除錯狀態文字 */}
                         {bgImageStatus === 'error' && (
                             <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
