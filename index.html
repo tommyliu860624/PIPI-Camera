@@ -16,7 +16,7 @@
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v6.9</title>
+    <title>皮皮相機 v6.10</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -93,6 +93,9 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
+        // ==========================================
+        // ▼▼▼ 自動產生 PNG 圖片清單 ▼▼▼
+        // ==========================================
         const BACKGROUND_IMAGES = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`);
         const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='16' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif'%3E請將圖片放入 images 資料夾%3C/text%3E%3C/svg%3E";
 
@@ -466,14 +469,14 @@
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-500"></i>
                                 </button>
 
-                                <button onClick={() => { requestBrowserLocation(); galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
+                                <button onClick={() => { galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
                                     <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center text-slate-400 border border-slate-600/30 group-hover:scale-110 transition-transform"><i data-lucide="image" className="w-6 h-6"></i></div>
                                     <div className="text-left"><h3 className="font-bold text-lg">從相簿挑選</h3><p className="text-xs text-gray-500">製作回憶明信片</p></div>
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-600"></i>
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.9 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.10 • AUTO GPS</div>
                     </div>
                 );
             }
@@ -511,21 +514,12 @@
                     <Toast message={toast.message} show={toast.show} />
                     <Fireworks />
                     
-                    {/* Top Bar: 改為 justify-end 並移除左側叉叉 */}
-                    <div className="absolute top-0 left-0 right-0 p-4 pt-2 mt-2 z-20 flex justify-end items-start safe-area-top pointer-events-none">
-                        <div className="pointer-events-auto">
-                            <button 
-                                onClick={() => setShowEdit(!showEdit)} 
-                                className={`px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-colors border border-white/10 ${showEdit ? 'bg-emerald-600 text-white' : 'bg-gray-800/90 backdrop-blur text-gray-200'}`}
-                            >
-                                <i data-lucide="pencil" className="w-4 h-4"></i>
-                                <span className="text-sm font-bold">編輯</span>
-                            </button>
-                        </div>
-                    </div>
+                    {/* Top Bar: 空白，避免擋到靈動島 */}
+                    <div className="absolute top-0 left-0 right-0 p-4 pt-2 mt-2 z-20 flex justify-end items-start safe-area-top pointer-events-none"></div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
-                        <div className="w-full max-w-md shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-4">
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-md mx-auto">
+                        
+                        <div className="w-full shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-6">
                              <div 
                                 ref={cardRef}
                                 className="relative w-full bg-white overflow-hidden"
@@ -565,7 +559,12 @@
 
                                 <div className="absolute inset-0 flex p-[4%] items-center z-10">
                                     <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
-                                        <img src={image} className="w-full h-full object-cover" alt="Captured" />
+                                        {/* 回歸使用 img 標籤 */}
+                                        <img 
+                                            src={image} 
+                                            className="w-full h-full object-contain bg-black" 
+                                            alt="User content" 
+                                        />
                                         <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                     </div>
                                     <div className="flex-1 h-full"></div>
@@ -573,15 +572,25 @@
                             </div>
                         </div>
 
-                        {/* 圖片除錯狀態文字 */}
+                        {/* 2. 編輯按鈕 (放在明信片下方) */}
+                        <div className="pointer-events-auto">
+                            <button 
+                                onClick={() => setShowEdit(!showEdit)} 
+                                className={`px-6 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-all transform active:scale-95 border border-white/10 ${showEdit ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50' : 'bg-gray-800/80 backdrop-blur text-gray-200 hover:bg-gray-700'}`}
+                            >
+                                <i data-lucide="pencil" className="w-4 h-4"></i>
+                                <span className="text-sm font-bold">編輯地點與時間</span>
+                            </button>
+                        </div>
+
                         {bgImageStatus === 'error' && (
-                            <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
+                            <div className="mt-2 bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
                             </div>
                         )}
                         {bgImageStatus === 'loading' && (
-                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
-                                🔄 讀取背景圖中: {currentBgPath}
+                            <div className="mt-2 bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
+                                🔄 讀取背景圖中...
                             </div>
                         )}
                     </div>
