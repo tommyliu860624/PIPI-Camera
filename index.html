@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="皮皮相機">
-    <title>皮皮相機 v6.0 (Smart Loader)</title>
+    <title>皮皮相機 v6.1</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -85,15 +85,13 @@
         const { useState, useRef, useEffect } = React;
 
         // ==========================================
-        // ▼▼▼ 自動產生 PNG 圖片清單 (Smart Mode) ▼▼▼
+        // ▼▼▼ 自動產生 PNG 圖片清單 (Fixed) ▼▼▼
         // ==========================================
-        // 這裡嘗試混合兩種常見命名格式，增加讀取成功率
-        const CUSTOM_IMAGES_1 = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`); // 有空格
-        const CUSTOM_IMAGES_2 = Array.from({ length: 25 }, (_, i) => `images/pipi_bg(${i + 1}).png`);  // 沒空格
-        const ALL_POSSIBLE_IMAGES = [...CUSTOM_IMAGES_1, ...CUSTOM_IMAGES_2];
+        // 修正：只產生 "pipi_bg (1).png" 這種帶有空格的格式，不亂猜了
+        const BACKGROUND_IMAGES = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`);
 
-        // 預設備用圖 (如果你的圖都讀不到，會顯示這個，確保不破版)
-        const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='20' text-anchor='middle' fill='%23ccc' font-family='sans-serif'%3E圖片讀取中...%3C/text%3E%3C/svg%3E";
+        // 預設備用圖 (如果還沒上傳圖片，或是路徑錯誤時顯示)
+        const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='16' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif'%3E請將圖片放入 images 資料夾%3C/text%3E%3C/svg%3E";
 
         // --- 煙火元件 ---
         const Fireworks = () => {
@@ -157,15 +155,12 @@
             
             // 圖片載入狀態管理
             const [bgImage, setBgImage] = useState(FALLBACK_IMAGE);
-            const [bgImageStatus, setBgImageStatus] = useState('loading'); // 'loading', 'loaded', 'error'
-            const [currentBgPath, setCurrentBgPath] = useState('');
+            const [bgImageStatus, setBgImageStatus] = useState('loading');
             
             const [processingText, setProcessingText] = useState("Printing..."); 
-            
             const [locationName, setLocationName] = useState("");
             const [locationDetail, setLocationDetail] = useState("定位中...");
             const [date, setDate] = useState("");
-            
             const [isGenerating, setIsGenerating] = useState(false);
             const [isLoadingLocation, setIsLoadingLocation] = useState(false);
             const [showEdit, setShowEdit] = useState(false);
@@ -252,22 +247,20 @@
                 ctx.fillText('📍 ' + detailText + '   ' + dateText, padding, currentY);
             };
 
-            // 智慧型隨機選圖 (含錯誤處理)
             const shuffleBackground = () => {
-                const randomIndex = Math.floor(Math.random() * ALL_POSSIBLE_IMAGES.length);
-                const selectedPath = ALL_POSSIBLE_IMAGES[randomIndex];
+                const randomIndex = Math.floor(Math.random() * BACKGROUND_IMAGES.length);
+                const selectedPath = BACKGROUND_IMAGES[randomIndex];
                 
-                setCurrentBgPath(selectedPath); // 紀錄目前想讀取的路徑
                 setBgImageStatus('loading');
                 
-                // 嘗試預載入圖片，如果失敗就切換 fallback
                 const img = new Image();
                 img.onload = () => {
                     setBgImage(selectedPath);
                     setBgImageStatus('loaded');
                 };
                 img.onerror = () => {
-                    console.warn(`Failed to load image: ${selectedPath}`);
+                    // 安靜地切換，不報錯
+                    console.warn(`Local image missing: ${selectedPath}`);
                     setBgImage(FALLBACK_IMAGE);
                     setBgImageStatus('error');
                 };
@@ -299,7 +292,7 @@
 
                 setMode('processing');
                 setProcessingText("正在印製明信片..."); 
-                shuffleBackground(); // 開始選背景
+                shuffleBackground(); 
 
                 const reader = new FileReader();
                 reader.onload = (event) => {
@@ -440,12 +433,12 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.0 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.1 • AUTO GPS</div>
                     </div>
                 );
             }
 
-            // VIEW 2: 印製轉場
+            // VIEW 2: 印製轉場 (Dark Mode)
             if (mode === 'processing') {
                 return (
                     <div className="h-[100dvh] w-full bg-gray-950 flex flex-col items-center justify-center relative transition-all duration-500 text-white">
@@ -472,7 +465,7 @@
                 );
             }
 
-            // VIEW 3: 完成畫面
+            // VIEW 3: 完成畫面 (Dark Mode + Slow Print Animation)
             return (
                 <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden relative">
                     <Toast message={toast.message} show={toast.show} />
@@ -543,15 +536,10 @@
                             </div>
                         </div>
 
-                        {/* 圖片除錯狀態文字 */}
+                        {/* 圖片除錯狀態文字 - 改為預覽模式提示 (無本地圖片時顯示) */}
                         {bgImageStatus === 'error' && (
-                            <div className="bg-red-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-red-500/50">
-                                ⚠️ 找不到背景圖: {currentBgPath}
-                            </div>
-                        )}
-                        {bgImageStatus === 'loading' && (
-                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
-                                🔄 讀取背景圖中: {currentBgPath}
+                            <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
+                                預覽模式 (無本地圖片)
                             </div>
                         )}
                     </div>
