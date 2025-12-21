@@ -11,12 +11,12 @@
     <meta name="apple-mobile-web-app-title" content="皮皮相機">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <!-- App Icon 設定 (強化相容性版) -->
+    <!-- App Icon 設定 -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v6.5</title>
+    <title>皮皮相機 v6.6</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -163,8 +163,10 @@
             
             const [bgImage, setBgImage] = useState(FALLBACK_IMAGE);
             const [bgImageStatus, setBgImageStatus] = useState('loading');
+            const [currentBgPath, setCurrentBgPath] = useState('');
             
             const [processingText, setProcessingText] = useState("Printing..."); 
+            
             const [locationName, setLocationName] = useState("");
             const [locationDetail, setLocationDetail] = useState("定位中...");
             const [date, setDate] = useState("");
@@ -259,6 +261,7 @@
                 const randomIndex = Math.floor(Math.random() * BACKGROUND_IMAGES.length);
                 const selectedPath = BACKGROUND_IMAGES[randomIndex];
                 
+                setCurrentBgPath(selectedPath); 
                 setBgImageStatus('loading');
                 
                 const img = new Image();
@@ -297,7 +300,6 @@
                 const file = e.target.files[0];
                 if (!file) return;
 
-                // 判斷來源是否為相機
                 const isCamera = e.target === cameraInputRef.current;
 
                 setMode('processing');
@@ -321,10 +323,9 @@
                 setLocationName("未命名地標");
                 setLocationDetail("定位中...");
                 const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
-                setDate(today); // 預設為今天
+                setDate(today); 
 
                 if (isCamera) {
-                    // --- 相機模式：使用當下定位 & 時間 ---
                     if (browserLocation) {
                         performReverseGeocode(browserLocation.latitude, browserLocation.longitude);
                     } else if ("geolocation" in navigator) {
@@ -341,7 +342,6 @@
                         setIsLoadingLocation(false);
                     }
                 } else {
-                    // --- 相簿模式：優先讀取 EXIF ---
                     EXIF.getData(file, function() {
                         const exifDate = EXIF.getTag(this, "DateTimeOriginal");
                         if (exifDate) {
@@ -358,7 +358,6 @@
                             const lon = convertDMSToDD(lonData, lonRef);
                             performReverseGeocode(lat, lon);
                         } else {
-                            // 相簿無 GPS 資訊時，顯示無位置，不要偷抓當下位置
                             setLocationDetail("無位置資訊");
                             setIsLoadingLocation(false);
                         }
@@ -445,14 +444,14 @@
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-500"></i>
                                 </button>
 
-                                <button onClick={() => { galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
+                                <button onClick={() => { requestBrowserLocation(); galleryInputRef.current.click(); }} className="w-full bg-gray-800/40 backdrop-blur-md border border-white/10 hover:bg-gray-700/40 text-gray-200 py-5 px-6 rounded-2xl flex items-center gap-4 transition-all transform active:scale-95 group shadow-lg shadow-black/20">
                                     <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center text-slate-400 border border-slate-600/30 group-hover:scale-110 transition-transform"><i data-lucide="image" className="w-6 h-6"></i></div>
                                     <div className="text-left"><h3 className="font-bold text-lg">從相簿挑選</h3><p className="text-xs text-gray-500">製作回憶明信片</p></div>
                                     <i data-lucide="chevron-right" className="ml-auto w-5 h-5 text-gray-600"></i>
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.5 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.6 • AUTO GPS</div>
                     </div>
                 );
             }
@@ -490,20 +489,11 @@
                     <Toast message={toast.message} show={toast.show} />
                     <Fireworks />
                     
-                    <div className="absolute top-0 left-0 right-0 p-4 pt-2 mt-2 z-20 flex justify-end items-start safe-area-top pointer-events-none">
-                        <div className="pointer-events-auto">
-                            <button 
-                                onClick={() => setShowEdit(!showEdit)} 
-                                className={`px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-colors border border-white/10 ${showEdit ? 'bg-emerald-600 text-white' : 'bg-gray-800/90 backdrop-blur text-gray-200'}`}
-                            >
-                                <i data-lucide="pencil" className="w-4 h-4"></i>
-                                <span className="text-sm font-bold">編輯</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 flex items-center justify-center p-6 z-10">
-                        <div className="w-full max-w-md shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-4">
+                    {/* 主要內容區：明信片 + 編輯按鈕 (垂直排列) */}
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-md mx-auto">
+                        
+                        {/* 1. 明信片本體 */}
+                        <div className="w-full shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-6">
                              <div 
                                 ref={cardRef}
                                 className="relative w-full bg-white overflow-hidden"
@@ -519,7 +509,7 @@
                                     <div className="absolute bottom-0 left-0 right-0 h-[3%] bg-gradient-to-r from-[#8ad7ff] via-[#ffe35e] to-[#ff8a8a] opacity-80 z-0"></div>
                                 )}
 
-                                {/* 郵戳 (Refined) */}
+                                {/* 郵戳 */}
                                 <div className="absolute top-[4%] right-[4%] z-20 w-[18%] aspect-square opacity-80 pointer-events-none transform rotate-12">
                                     <svg viewBox="0 0 100 100" className="w-full h-full">
                                         <circle cx="50" cy="50" r="46" fill="none" stroke="#b91c1c" strokeWidth="2" />
@@ -551,15 +541,26 @@
                             </div>
                         </div>
 
+                        {/* 2. 編輯按鈕 (放在明信片下方) */}
+                        <div className="pointer-events-auto">
+                            <button 
+                                onClick={() => setShowEdit(!showEdit)} 
+                                className={`px-6 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-all transform active:scale-95 border border-white/10 ${showEdit ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50' : 'bg-gray-800/80 backdrop-blur text-gray-200 hover:bg-gray-700'}`}
+                            >
+                                <i data-lucide="pencil" className="w-4 h-4"></i>
+                                <span className="text-sm font-bold">編輯地點與時間</span>
+                            </button>
+                        </div>
+
                         {/* 圖片除錯狀態文字 */}
                         {bgImageStatus === 'error' && (
-                            <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
+                            <div className="mt-2 bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
                             </div>
                         )}
                         {bgImageStatus === 'loading' && (
-                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
-                                🔄 讀取背景圖中: {currentBgPath}
+                            <div className="mt-2 bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
+                                🔄 讀取背景圖中...
                             </div>
                         )}
                     </div>
