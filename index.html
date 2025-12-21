@@ -16,7 +16,7 @@
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v6.6</title>
+    <title>皮皮相機 v6.7</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -451,7 +451,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.6 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.7 • AUTO GPS</div>
                     </div>
                 );
             }
@@ -533,7 +533,16 @@
 
                                 <div className="absolute inset-0 flex p-[4%] items-center z-10">
                                     <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
-                                        <img src={image} className="w-full h-full object-cover" alt="Captured" />
+                                        {/* FIX: 使用 background-image 替代 img 標籤，解決 html2canvas object-fit 變形問題 */}
+                                        <div 
+                                            className="w-full h-full"
+                                            style={{
+                                                backgroundImage: `url("${image}")`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                                backgroundRepeat: 'no-repeat'
+                                            }}
+                                        />
                                         <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                     </div>
                                     <div className="flex-1 h-full"></div>
