@@ -16,7 +16,7 @@
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v6.8</title>
+    <title>皮皮相機 v6.9</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -205,7 +205,6 @@
 
             useEffect(() => {
                 if (mode === 'result' && textCanvasRef.current) {
-                    // 使用 ResizeObserver 確保文字 Canvas 永遠跟隨圖片大小
                     const resizeObserver = new ResizeObserver(() => {
                         drawTextOnCanvas();
                     });
@@ -330,7 +329,6 @@
 
                 const reader = new FileReader();
                 reader.onload = async (event) => {
-                    // 修正：先進行圖片裁切，確保它是正方形
                     const squareImage = await cropToSquare(event.target.result);
                     setImage(squareImage);
                     
@@ -443,6 +441,7 @@
 
             const isCssBg = bgImage.startsWith('data:') || bgImage === 'css-default';
 
+            // VIEW 1: 首頁 (Dark Mode)
             if (mode === 'camera') {
                 return (
                     <div className="h-[100dvh] w-full bg-gradient-to-b from-gray-900 via-gray-900 to-emerald-950 flex flex-col relative overflow-hidden text-white">
@@ -474,11 +473,12 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.8 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.9 • AUTO GPS</div>
                     </div>
                 );
             }
 
+            // VIEW 2: 印製轉場 (Dark Mode)
             if (mode === 'processing') {
                 return (
                     <div className="h-[100dvh] w-full bg-gray-950 flex flex-col items-center justify-center relative transition-all duration-500 text-white">
@@ -505,20 +505,27 @@
                 );
             }
 
+            // VIEW 3: 完成畫面 (Dark Mode + Slow Print Animation)
             return (
                 <div className="h-[100dvh] bg-gray-950 flex flex-col overflow-hidden relative">
                     <Toast message={toast.message} show={toast.show} />
                     <Fireworks />
                     
-                    <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start safe-area-top pointer-events-none">
-                        <button onClick={() => { if(confirm("要放棄目前的編輯並重來嗎？")) resetApp(); }} className="pointer-events-auto w-10 h-10 bg-gray-800/90 backdrop-blur rounded-full shadow-lg flex items-center justify-center text-gray-200 active:scale-90 transition-transform border border-white/10">
-                            <i data-lucide="x" className="w-6 h-6"></i>
-                        </button>
+                    {/* Top Bar: 改為 justify-end 並移除左側叉叉 */}
+                    <div className="absolute top-0 left-0 right-0 p-4 pt-2 mt-2 z-20 flex justify-end items-start safe-area-top pointer-events-none">
+                        <div className="pointer-events-auto">
+                            <button 
+                                onClick={() => setShowEdit(!showEdit)} 
+                                className={`px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-colors border border-white/10 ${showEdit ? 'bg-emerald-600 text-white' : 'bg-gray-800/90 backdrop-blur text-gray-200'}`}
+                            >
+                                <i data-lucide="pencil" className="w-4 h-4"></i>
+                                <span className="text-sm font-bold">編輯</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-md mx-auto">
-                        
-                        <div className="w-full shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-6">
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 z-10">
+                        <div className="w-full max-w-md shadow-2xl shadow-black/50 rounded-xl overflow-hidden transform transition-all ring-1 ring-white/10 animate-print mb-4">
                              <div 
                                 ref={cardRef}
                                 className="relative w-full bg-white overflow-hidden"
@@ -534,6 +541,7 @@
                                     <div className="absolute bottom-0 left-0 right-0 h-[3%] bg-gradient-to-r from-[#8ad7ff] via-[#ffe35e] to-[#ff8a8a] opacity-80 z-0"></div>
                                 )}
 
+                                {/* 郵戳 */}
                                 <div className="absolute top-[4%] right-[4%] z-20 w-[18%] aspect-square opacity-80 pointer-events-none transform rotate-12">
                                     <svg viewBox="0 0 100 100" className="w-full h-full">
                                         <circle cx="50" cy="50" r="46" fill="none" stroke="#b91c1c" strokeWidth="2" />
@@ -557,12 +565,7 @@
 
                                 <div className="absolute inset-0 flex p-[4%] items-center z-10">
                                     <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
-                                        {/* 回歸使用 img 標籤，解決背景圖解析度問題 */}
-                                        <img 
-                                            src={image} 
-                                            className="w-full h-full object-contain bg-black" 
-                                            alt="User content" 
-                                        />
+                                        <img src={image} className="w-full h-full object-cover" alt="Captured" />
                                         <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                     </div>
                                     <div className="flex-1 h-full"></div>
@@ -570,24 +573,15 @@
                             </div>
                         </div>
 
-                        <div className="pointer-events-auto">
-                            <button 
-                                onClick={() => setShowEdit(!showEdit)} 
-                                className={`px-6 py-2.5 rounded-full shadow-lg flex items-center gap-2 transition-all transform active:scale-95 border border-white/10 ${showEdit ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50' : 'bg-gray-800/80 backdrop-blur text-gray-200 hover:bg-gray-700'}`}
-                            >
-                                <i data-lucide="pencil" className="w-4 h-4"></i>
-                                <span className="text-sm font-bold">編輯地點與時間</span>
-                            </button>
-                        </div>
-
+                        {/* 圖片除錯狀態文字 */}
                         {bgImageStatus === 'error' && (
-                            <div className="mt-2 bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
+                            <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
                             </div>
                         )}
                         {bgImageStatus === 'loading' && (
-                            <div className="mt-2 bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
-                                🔄 讀取背景圖中...
+                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
+                                🔄 讀取背景圖中: {currentBgPath}
                             </div>
                         )}
                     </div>
