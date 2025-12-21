@@ -4,10 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#022c22">
+    
+    <!-- PWA 設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="皮皮相機">
-    <title>皮皮相機 v6.2</title>
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- App Icon 設定：深綠色背景配上嫩芽 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23064e3b%22 rx=%2220%22/><text y=%2255%22 font-size=%2250%22 text-anchor=%22middle%22 x=%2250%22 dy=%22.35em%22>🌱</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23064e3b%22/><text y=%2255%22 font-size=%2250%22 text-anchor=%22middle%22 x=%2250%22 dy=%22.35em%22>🌱</text></svg>">
+
+    <title>皮皮相機 v6.3</title>
     
     <!-- React & Libraries -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -443,7 +451,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.2 • AUTO GPS</div>
+                        <div className="p-4 text-center text-xs text-gray-500 font-mono z-10 safe-area-bottom">PIPI CAM v6.3 • AUTO GPS</div>
                     </div>
                 );
             }
@@ -514,7 +522,7 @@
                                     <div className="absolute bottom-0 left-0 right-0 h-[3%] bg-gradient-to-r from-[#8ad7ff] via-[#ffe35e] to-[#ff8a8a] opacity-80 z-0"></div>
                                 )}
 
-                                {/* 郵戳 */}
+                                {/* 郵戳 (Refined) */}
                                 <div className="absolute top-[4%] right-[4%] z-20 w-[18%] aspect-square opacity-80 pointer-events-none transform rotate-12">
                                     <svg viewBox="0 0 100 100" className="w-full h-full">
                                         <circle cx="50" cy="50" r="46" fill="none" stroke="#b91c1c" strokeWidth="2" />
@@ -550,6 +558,11 @@
                         {bgImageStatus === 'error' && (
                             <div className="bg-white/10 backdrop-blur-sm text-gray-400 text-[10px] px-3 py-1 rounded-full animate-pulse border border-white/5">
                                 預覽模式 (無本地圖片)
+                            </div>
+                        )}
+                        {bgImageStatus === 'loading' && (
+                            <div className="bg-blue-900/80 text-white text-[10px] px-3 py-1 rounded-full animate-pulse border border-blue-500/50">
+                                🔄 讀取背景圖中: {currentBgPath}
                             </div>
                         )}
                     </div>
