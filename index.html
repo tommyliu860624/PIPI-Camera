@@ -14,7 +14,7 @@
     <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b' rx='20'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23064e3b'/%3E%3Ctext y='55' font-size='50' text-anchor='middle' x='50' dy='.35em'%3E🌱%3C/text%3E%3C/svg%3E">
 
-    <title>皮皮相機 v8.5</title>
+    <title>皮皮相機 v8.6</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -65,9 +65,6 @@
         const BACKGROUND_IMAGES = Array.from({ length: 25 }, (_, i) => `images/pipi_bg (${i + 1}).png`);
         const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg width='600' height='400' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ccircle cx='550' cy='50' r='100' fill='%23e2e8f0' opacity='0.5'/%3E%3Ccircle cx='50' cy='350' r='80' fill='%23e2e8f0' opacity='0.5'/%3E%3Ctext x='50%25' y='50%25' font-size='16' text-anchor='middle' fill='%2394a3b8' font-family='sans-serif'%3E請將圖片放入 images 資料夾%3C/text%3E%3C/svg%3E";
 
-        // ==========================================
-        // 🔒 時間鎖定設定 (嚴格模式)
-        // ==========================================
         const TARGET_UNLOCK_TIME = "2025-12-31T13:00:00+08:00"; 
         const API_BACKUP = "https://worldtimeapi.org/api/timezone/Asia/Taipei";
 
@@ -251,6 +248,22 @@
                 return () => clearInterval(timerRef.current);
             }, [isLocked, serverOffset]);
 
+            // 確保切換到結果頁面時會觸發 Canvas 繪製
+            useEffect(() => {
+                if (mode === 'result' && textCanvasRef.current) {
+                    // 立即繪製一次
+                    drawTextOnCanvas();
+                    // 設定延遲繪製，確保字型與佈局載入
+                    setTimeout(drawTextOnCanvas, 100);
+                    
+                    const resizeObserver = new ResizeObserver(() => {
+                        drawTextOnCanvas();
+                    });
+                    resizeObserver.observe(textCanvasRef.current);
+                    return () => resizeObserver.disconnect();
+                }
+            }, [mode, locationName, locationDetail, date, image]); // 加入 image 依賴
+
             const handleSecretTap = () => {
                 if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
                 const newCount = tapCount + 1;
@@ -263,7 +276,7 @@
             };
 
             const checkNetworkTime = async () => {
-                setLockMessage("正在連線至時間伺服器...");
+                setLockMessage("連線校時中...");
                 let networkTime = null;
 
                 try {
@@ -292,7 +305,7 @@
                         clearTimeout(timeoutId);
                         if (response.ok) {
                             const data = await response.json();
-                            if (data && data.datetime) {
+                            if (data.datetime) {
                                 networkTime = new Date(data.datetime).getTime();
                             }
                         }
@@ -539,11 +552,11 @@
                 if(galleryInputRef.current) galleryInputRef.current.value = '';
             };
 
-            // Fix ReferenceError: define isCssBg within App
             const isCssBg = bgImage.startsWith('data:') || bgImage === 'css-default';
 
             return (
                 <div className="h-[100dvh] w-full bg-gradient-to-b from-gray-900 via-gray-900 to-emerald-950 flex flex-col relative overflow-hidden text-white">
+                    {/* VIEW 1: 首頁 */}
                     {mode === 'camera' && (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 z-10 animate-slide-up w-full">
                             <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-500 rounded-full mix-blend-screen filter blur-[80px] opacity-20 animate-blob"></div>
@@ -551,6 +564,7 @@
                             <div className="absolute -bottom-32 left-20 w-80 h-80 bg-green-600 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob animation-delay-4000"></div>
                             
                             <div className="text-center mb-8 relative z-10">
+                                {/* 管理員模式觸發點 */}
                                 <div 
                                     className="text-6xl mb-4 animate-float inline-block drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] cursor-pointer active:scale-95 transition-transform"
                                     onClick={handleSecretTap}
@@ -587,7 +601,7 @@
                                     </button>
                                 </div>
                             )}
-                            <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-gray-500 font-mono safe-area-bottom">PIPI CAM v8.5</div>
+                            <div className="absolute bottom-4 left-0 right-0 text-center text-xs text-gray-500 font-mono safe-area-bottom">PIPI CAM v8.6</div>
                         </div>
                     )}
 
@@ -652,7 +666,12 @@
                                         </div>
                                         <div className="absolute inset-0 flex p-[4%] items-center z-10">
                                             <div className="relative h-full aspect-square bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 shadow-md border-2 border-white/50">
-                                                <img src={image} className="w-full h-full object-contain bg-black" alt="Captured" />
+                                                {/* FIX: 使用 img 標籤並設定 object-contain 與背景色 */}
+                                                <img 
+                                                    src={image} 
+                                                    className="w-full h-full object-contain bg-black" 
+                                                    alt="Captured" 
+                                                />
                                                 <canvas ref={textCanvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                                             </div>
                                             <div className="flex-1 h-full"></div>
